@@ -57,13 +57,23 @@
     border-top: 2px solid #777; border-bottom: none;
   }
   #tracks-table tr.total-row:hover td { background: transparent; }
+
+  /* ---- Mobile: vertical stack (map, elevation profile, table) ---- */
+  @media (max-width: 600px) {
+    body { height: auto; overflow-y: auto; }
+    #map-wrapper { position: relative; inset: auto; height: 60vh; width: 100%; }
+    #overlay { position: static; }
+    #tracks-panel {
+      position: static; left: auto;
+      max-width: none; width: 100%; height: auto;
+    }
+  }
 </style>
 </head>
 <body>
 
 <div id="map-wrapper">
   <div id="map"></div>
-  <div id="tracks-panel"></div>
 </div>
 
 <div id="overlay">
@@ -71,6 +81,8 @@
     <canvas id="elevation-canvas"></canvas>
   </div>
 </div>
+
+<div id="tracks-panel"></div>
 
 <script>
 // ---- Hardcoded, self-contained data (generated from ./ebc/*.gpx) ----
@@ -287,7 +299,15 @@ function drawElevationChart(highlightIdx = null) {
 // ---- Layout: table fills the right; map takes the remaining space (not behind
 //      the table or the elevation chart) ----
 const mapEl = document.getElementById('map');
+const mobileMQ = window.matchMedia('(max-width: 600px)');
 function updateLayout() {
+  if (mobileMQ.matches) {
+    // Mobile: stacked flow — clear desktop inline insets and let CSS size things.
+    mapEl.style.top = mapEl.style.left = mapEl.style.right = mapEl.style.bottom = '';
+    tracksPanel.style.top = tracksPanel.style.height = '';
+    map.invalidateSize();
+    return;
+  }
   const overlayH = overlayEl.offsetHeight;
   tracksPanel.style.top = '0px';
   tracksPanel.style.height = (window.innerHeight - overlayH) + 'px';
