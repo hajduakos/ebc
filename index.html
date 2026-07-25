@@ -51,7 +51,9 @@
   /* numeric columns (Distance onward) right-aligned; Day & Name stay left */
   #tracks-table th:nth-child(n+3),
   #tracks-table td:nth-child(n+3) { text-align: right; }
+  #tracks-table tbody tr[data-track-idx] { cursor: pointer; }
   #tracks-table tbody tr:hover td { background: rgba(255,255,255,0.05); }
+  #tracks-table tbody tr.selected td { background: rgba(255,255,255,0.12); }
   #tracks-table tr.total-row td {
     font-weight: 700; color: #fff;
     border-top: 2px solid #777; border-bottom: none;
@@ -172,16 +174,21 @@ function buildTable() {
   html += '</tbody></table>';
   tracksPanel.innerHTML = html;
 
-  // Highlight on hover: dim all other tracks to DIM_OPACITY
-  tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(row => {
-    row.addEventListener('mouseenter', () => {
-      const i = parseInt(row.dataset.trackIdx);
-      trackLayers.forEach((l, j) => l.setStyle({ opacity: j === i ? 1 : DIM_OPACITY }));
-      drawElevationChart(i);
+  // Click/tap a row to select it: dim all others on the map + emphasise it in
+  // the profile. Click the selected row again to deselect.
+  let selectedIdx = null;
+  function applyHighlight(idx) {
+    trackLayers.forEach((l, j) => l.setStyle({ opacity: (idx == null || j === idx) ? 1 : DIM_OPACITY }));
+    drawElevationChart(idx);
+    tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(r => {
+      r.classList.toggle('selected', parseInt(r.dataset.trackIdx) === idx);
     });
-    row.addEventListener('mouseleave', () => {
-      trackLayers.forEach(l => l.setStyle({ opacity: 1 }));
-      drawElevationChart();
+  }
+  tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(row => {
+    const i = parseInt(row.dataset.trackIdx);
+    row.addEventListener('click', () => {
+      selectedIdx = (selectedIdx === i) ? null : i;
+      applyHighlight(selectedIdx);
     });
   });
 }
