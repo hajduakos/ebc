@@ -226,12 +226,6 @@ function drawElevationChart(highlightIdx = null) {
 
     cumPxOffset += segW + gapPx;
   });
-
-  ctx.fillStyle = '#fff';
-  ctx.font = '10px sans-serif';
-  ctx.fillText(Math.round(maxE) + ' m', 4, 12);
-  ctx.fillText(Math.round(minE) + ' m', 4, H - 4);
-  ctx.fillText((totalSegDist / 1000).toFixed(1) + ' km', W - 50, H - 4);
 }
 
 // ---- Layout: table fills the right; map takes the remaining space (not behind
