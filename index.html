@@ -199,6 +199,9 @@ function resampleProfile(points, distances) {
   for (let b = 0; b < nB; b++) {
     if (cnt[b] > 0) { rp.push([0, 0, sumE[b] / cnt[b]]); rd.push(sumD[b] / cnt[b]); }
   }
+  // Anchor endpoints to the true start/end so adjacent tracks meet with no gap.
+  rd[0] = 0; rp[0][2] = points[0][2] ?? rp[0][2];
+  rd[rd.length - 1] = total; rp[rp.length - 1][2] = points[points.length - 1][2] ?? rp[rp.length - 1][2];
   return { points: rp, distances: rd };
 }
 const elevSegments = TRACKS.map(t => resampleProfile(t.points, segDistances(t.points)));
@@ -224,7 +227,7 @@ function drawElevationChart(highlightIdx = null) {
   let totalSegDist = 0;
   elevSegments.forEach(seg => { totalSegDist += seg.distances[seg.distances.length - 1]; });
   const numGaps = elevSegments.length > 1 ? elevSegments.length - 1 : 0;
-  const gapPx = 1;
+  const gapPx = 0;
   const usableW = W - numGaps * gapPx;
 
   ctx.clearRect(0, 0, W, H);
