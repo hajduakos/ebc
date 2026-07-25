@@ -81,6 +81,21 @@ const LINE_COLOR = '#8b0000';      // solid dark red
 const LINE_WEIGHT = 4;
 const DIM_OPACITY = 0.3;
 
+// Elevation-profile slope colouring (grade = rise / run).
+// green: downhill/flat | yellow: 0-10% | orange: 10-20% | red: 20-30% | dark red: >30%
+const SLOPE_MED = 0.10;     // 10% grade
+const SLOPE_STEEP = 0.20;   // 20% grade
+const SLOPE_VSTEEP = 0.30;  // 30% grade
+const PROFILE_STEP = 100;   // metres — coarser resampling for the elevation profile
+function slopeColor(grade, dim) {
+  if (dim) return 'rgba(255,255,255,0.2)';
+  if (grade > SLOPE_VSTEEP) return '#8b0000'; // dark red
+  if (grade > SLOPE_STEEP)  return '#e53935'; // red
+  if (grade > SLOPE_MED)    return '#fb8c00'; // orange
+  if (grade > 0)            return '#ffb300'; // yellow
+  return '#4caf50';                           // green (downhill / flat)
+}
+
 // ---- Geometry helpers ----
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -170,7 +185,23 @@ function segDistances(points) {
   }
   return d;
 }
-const elevSegments = TRACKS.map(t => ({ points: t.points, distances: segDistances(t.points) }));
+// Bucket-average the 10 m points into ~PROFILE_STEP buckets so the profile is smoother.
+function resampleProfile(points, distances) {
+  const total = distances[distances.length - 1];
+  const nB = Math.max(1, Math.round(total / PROFILE_STEP));
+  const bw = total / nB;
+  const sumE = new Array(nB).fill(0), sumD = new Array(nB).fill(0), cnt = new Array(nB).fill(0);
+  for (let i = 0; i < points.length; i++) {
+    const b = Math.min(nB - 1, Math.floor(distances[i] / bw));
+    sumE[b] += (points[i][2] ?? 0); sumD[b] += distances[i]; cnt[b]++;
+  }
+  const rp = [], rd = [];
+  for (let b = 0; b < nB; b++) {
+    if (cnt[b] > 0) { rp.push([0, 0, sumE[b] / cnt[b]]); rd.push(sumD[b] / cnt[b]); }
+  }
+  return { points: rp, distances: rd };
+}
+const elevSegments = TRACKS.map(t => resampleProfile(t.points, segDistances(t.points)));
 
 function drawElevationChart(highlightIdx = null) {
   const ctx = elevationCanvas.getContext('2d');
@@ -207,6 +238,7 @@ function drawElevationChart(highlightIdx = null) {
       y: H - (((p[2] ?? 0) - minE) / (maxE - minE)) * H,
     }));
 
+    // area under the profile (unchanged white gradient)
     ctx.beginPath();
     ctx.moveTo(cumPxOffset, H);
     coords.forEach(c => ctx.lineTo(c.x, c.y));
@@ -218,11 +250,17 @@ function drawElevationChart(highlightIdx = null) {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    ctx.beginPath();
-    coords.forEach((c, i) => i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y));
-    ctx.strokeStyle = dim ? 'rgba(255,255,255,0.2)' : '#fff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    // slope-coloured line on top
+    for (let i = 0; i < coords.length - 1; i++) {
+      const rise = (seg.points[i + 1][2] ?? 0) - (seg.points[i][2] ?? 0);
+      const run = seg.distances[i + 1] - seg.distances[i];
+      ctx.beginPath();
+      ctx.moveTo(coords[i].x, coords[i].y);
+      ctx.lineTo(coords[i + 1].x, coords[i + 1].y);
+      ctx.strokeStyle = slopeColor(run > 0 ? rise / run : 0, dim);
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
 
     cumPxOffset += segW + gapPx;
   });
