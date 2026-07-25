@@ -267,6 +267,21 @@ function drawElevationChart(highlightIdx = null) {
 
     cumPxOffset += segW + gapPx;
   });
+
+  // Elevation gridlines at 3000 / 4000 / 5000 m
+  ctx.lineWidth = 1;
+  ctx.font = '10px sans-serif';
+  [3000, 4000, 5000].forEach(el => {
+    if (el < minE || el > maxE) return;
+    const y = H - ((el - minE) / (maxE - minE)) * H;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(el + ' m', 4, Math.max(10, y - 3));
+  });
 }
 
 // ---- Layout: table fills the right; map takes the remaining space (not behind
