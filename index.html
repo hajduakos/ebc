@@ -132,6 +132,7 @@ const elevationCanvas = document.getElementById('elevation-canvas');
 
 // ---- Render tracks ----
 const trackLayers = [];   // one polyline per track
+let profileHighlight = null;   // index of the highlighted track (persists across redraws)
 const allBounds = L.latLngBounds();
 
 TRACKS.forEach((t, idx) => {
@@ -178,6 +179,7 @@ function buildTable() {
   // the profile. Click the selected row again to deselect.
   let selectedIdx = null;
   function applyHighlight(idx) {
+    profileHighlight = idx;
     trackLayers.forEach((l, j) => l.setStyle({ opacity: (idx == null || j === idx) ? 1 : DIM_OPACITY }));
     // Show all start/end markers when nothing is selected; otherwise only the
     // selected track's own start and end markers.
@@ -188,7 +190,7 @@ function buildTable() {
         if (show) m.addTo(map); else map.removeLayer(m);
       });
     });
-    drawElevationChart(idx);
+    drawElevationChart();
     tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(r => {
       r.classList.toggle('selected', parseInt(r.dataset.trackIdx) === idx);
     });
@@ -234,7 +236,7 @@ function resampleProfile(points, distances) {
 }
 const elevSegments = TRACKS.map(t => resampleProfile(t.points, segDistances(t.points)));
 
-function drawElevationChart(highlightIdx = null) {
+function drawElevationChart() {
   const ctx = elevationCanvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
   const rect = elevationCanvas.getBoundingClientRect();
@@ -261,7 +263,7 @@ function drawElevationChart(highlightIdx = null) {
   ctx.clearRect(0, 0, W, H);
   let cumPxOffset = 0;
   elevSegments.forEach((seg, segIdx) => {
-    const dim = highlightIdx != null && segIdx !== highlightIdx;
+    const dim = profileHighlight != null && segIdx !== profileHighlight;
     const segMaxD = seg.distances[seg.distances.length - 1];
     const segW = totalSegDist > 0 ? (segMaxD / totalSegDist) * usableW : 0;
     const coords = seg.points.map((p, i) => ({
