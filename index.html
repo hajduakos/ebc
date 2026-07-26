@@ -67,7 +67,8 @@
   }
   .map-fs-btn svg { width: 18px; height: 18px; display: block; }
   body.map-full #map-wrapper {
-    position: fixed; inset: 0; width: 100%; height: 100vh; z-index: 1500;
+    position: fixed; top: 0; left: 0; right: 0;
+    width: 100%; height: 100dvh; z-index: 1500;  /* dvh excludes the iOS URL bar */
   }
   body.map-full #tracks-panel,
   body.map-full #overlay { display: none; }
