@@ -60,6 +60,18 @@
   }
   #tracks-table tr.total-row:hover td { background: transparent; }
 
+  /* ---- Fullscreen map toggle ---- */
+  .map-fs-btn a {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+  }
+  .map-fs-btn svg { width: 18px; height: 18px; display: block; }
+  body.map-full #map-wrapper {
+    position: fixed; inset: 0; width: 100%; height: 100vh; z-index: 1500;
+  }
+  body.map-full #tracks-panel,
+  body.map-full #overlay { display: none; }
+
   /* ---- Mobile: vertical stack (map, elevation profile, table) ---- */
   @media (max-width: 600px) {
     body { height: auto; overflow-y: auto; }
@@ -125,6 +137,32 @@ L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
   maxZoom: 17, attribution: '&copy; OpenTopoMap'
 }).addTo(map);
 map.getPane('tilePane').style.filter = 'brightness(1) opacity(0.6)';
+
+// ---- Fullscreen toggle (bottom-left) ----
+const ICON_EXPAND = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+const ICON_COMPRESS = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
+let mapFull = false;
+let fullBtnLink = null;
+function setMapFull(on) {
+  mapFull = on;
+  fullBtnLink.innerHTML = on ? ICON_COMPRESS : ICON_EXPAND;
+  fullBtnLink.title = on ? 'Exit full screen' : 'Full screen';
+  updateLayout();
+  drawElevationChart();
+}
+const fsControl = L.control({ position: 'bottomleft' });
+fsControl.onAdd = function () {
+  const div = L.DomUtil.create('div', 'leaflet-bar map-fs-btn');
+  const a = L.DomUtil.create('a', '', div);
+  a.href = '#';
+  a.title = 'Full screen';
+  a.innerHTML = ICON_EXPAND;
+  fullBtnLink = a;
+  L.DomEvent.on(a, 'click', L.DomEvent.stop);
+  L.DomEvent.on(a, 'click', () => setMapFull(!mapFull));
+  return div;
+};
+fsControl.addTo(map);
 
 const overlayEl = document.getElementById('overlay');
 const tracksPanel = document.getElementById('tracks-panel');
@@ -319,6 +357,13 @@ function drawElevationChart() {
 const mapEl = document.getElementById('map');
 const mobileMQ = window.matchMedia('(max-width: 600px)');
 function updateLayout() {
+  if (mapFull) {
+    document.body.classList.add('map-full');
+    mapEl.style.top = mapEl.style.left = mapEl.style.right = mapEl.style.bottom = '';
+    map.invalidateSize();
+    return;
+  }
+  document.body.classList.remove('map-full');
   if (mobileMQ.matches) {
     // Mobile: stacked flow — clear desktop inline insets and let CSS size things.
     mapEl.style.top = mapEl.style.left = mapEl.style.right = mapEl.style.bottom = '';
