@@ -78,7 +78,7 @@
   /* ---- Mobile: vertical stack (map, elevation profile, table) ---- */
   @media (max-width: 600px) {
     body { height: auto; overflow-y: auto; }
-    #map-wrapper { position: relative; inset: auto; height: 60vh; width: 100%; }
+    #map-wrapper { position: relative; inset: auto; height: 60dvh; width: 100%; }
     #overlay { position: static; }
     #tracks-panel {
       position: static; left: auto;
@@ -152,6 +152,8 @@ function setMapFull(on) {
   fullBtnLink.title = on ? 'Exit full screen' : 'Full screen';
   updateLayout();
   drawElevationChart();
+  // iOS: re-measure once the viewport / URL bar settles after the fixed↔flow switch
+  setTimeout(() => { updateLayout(); drawElevationChart(); }, 100);
 }
 const fsControl = L.control({ position: 'bottomleft' });
 fsControl.onAdd = function () {
