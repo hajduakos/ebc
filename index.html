@@ -45,9 +45,11 @@
     color: #fff; border-bottom: 1px solid #555; white-space: nowrap;
   }
   #tracks-table td {
-    padding: 6px 8px; color: #e0e0e0; border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 6px 8px; color: #e0e0e0;
     white-space: nowrap;
   }
+  /* divider only between days, not between tracks of the same day */
+  #tracks-table tbody tr.day-start td { border-top: 1px solid rgba(255,255,255,0.08); }
   /* numeric columns (Distance onward) right-aligned; Day & Name stay left */
   #tracks-table th:nth-child(n+3),
   #tracks-table td:nth-child(n+3) { text-align: right; }
@@ -203,8 +205,13 @@ function buildTable() {
     '<th>Day</th><th>Name</th><th>Dist</th><th>Gain</th><th>Elapsed</th><th>Moving</th>' +
     '<th>Min</th><th>Max</th>' +
     '</tr></thead><tbody>';
+  let prevDay = null;
   TRACKS.forEach((t, idx) => {
-    html += `<tr data-track-idx="${idx}"><td>${t.day}</td><td>${t.name}</td>` +
+    const isNewDay = t.day !== prevDay;
+    const dayCell = isNewDay ? t.day : '';
+    prevDay = t.day;
+    const cls = (isNewDay && idx > 0) ? ' class="day-start"' : '';
+    html += `<tr data-track-idx="${idx}"${cls}><td>${dayCell}</td><td>${t.name}</td>` +
       `<td>${t.dist}</td><td>${t.gain}</td><td>${t.elapsed}</td><td>${t.moving}</td>` +
       `<td>${t.minEle}</td><td>${t.maxEle}</td></tr>`;
   });
