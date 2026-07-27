@@ -165,6 +165,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 
 // ---- Map (fixed style: OpenTopoMap, opacity 0.6) ----
 const map = L.map('map', { zoomControl: false }).setView([27.9, 86.8], 11);
+L.control.zoom({ position: 'topright' }).addTo(map);
 const tileTerrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
   maxZoom: 17, attribution: '&copy; OpenTopoMap'
 });
