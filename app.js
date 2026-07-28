@@ -19,7 +19,7 @@ function slopeColor(grade, dim) {
 }
 
 // ---- Map ----
-const map = L.map('map', { zoomControl: false }).setView(CONFIG.center, CONFIG.zoom);
+const map = L.map('map', { zoomControl: false }).setView([0, 0], 2);  // placeholder; fitBounds overrides on load
 L.control.zoom({ position: 'topright' }).addTo(map);
 const tileTerrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
   maxZoom: 17, attribution: '&copy; OpenTopoMap'
