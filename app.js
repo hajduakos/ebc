@@ -143,9 +143,9 @@ for (let i = 0; i < TRACKS.length - 1; i++) {
   TRACKS[i + 1]._markerStart.setIcon(midIcon);
 }
 
-// Car-transfer gaps: dashed light-red line from a track's end to the next track's start.
-const CAR_GAPS = CONFIG.carGaps || [];
-CAR_GAPS.forEach(i => {
+// Discontinuities in the journey: dashed light-red line from a track's end to the next track's start.
+const FILL_GAP_WITH_DASH = CONFIG.fillGapWithDash || [];
+FILL_GAP_WITH_DASH.forEach(i => {
   const a = TRACKS[i].points[TRACKS[i].points.length - 1];
   const b = TRACKS[i + 1].points[0];
   L.polyline([[a[0], a[1]], [b[0], b[1]]], { color: '#ff6b6b', weight: 3, opacity: 0.9, dashArray: '6 8' }).addTo(map);
