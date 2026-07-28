@@ -267,11 +267,11 @@ function drawElevationChart() {
     cumPxOffset += segW + gapPx;
   });
 
-  // Elevation gridlines at 3000 / 4000 / 5000 m
+  // Elevation gridlines every 1000 m (0–8000) that fall within the visible range
   ctx.lineWidth = 1;
   ctx.font = '10px sans-serif';
-  CONFIG.gridlines.forEach(el => {
-    if (el < minE || el > maxE) return;
+  for (let el = 0; el <= 8000; el += 1000) {
+    if (el < minE || el > maxE) continue;
     const y = H - ((el - minE) / (maxE - minE)) * H;
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.beginPath();
@@ -280,7 +280,7 @@ function drawElevationChart() {
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText(el + ' m', 4, Math.max(10, y - 3));
-  });
+  }
 }
 
 // ---- Layout: table fills the right; map takes the remaining space (not behind
