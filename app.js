@@ -1,0 +1,322 @@
+// Shared hike viewer. Reads globals from the page: TRACKS, TOTAL, PHOTOS, PROFILE, CONFIG.
+
+const LINE_COLOR = '#8b0000';      // solid dark red
+const LINE_WEIGHT = 4;
+const DIM_OPACITY = 0.3;
+
+// Elevation-profile slope colouring (grade = rise / run).
+// green: downhill/flat | yellow: 0-10% | orange: 10-20% | red: 20-30% | dark red: >30%
+const SLOPE_MED = 0.10;     // 10% grade
+const SLOPE_STEEP = 0.20;   // 20% grade
+const SLOPE_VSTEEP = 0.30;  // 30% grade
+function slopeColor(grade, dim) {
+  if (dim) return 'rgba(255,255,255,0.2)';
+  if (grade > SLOPE_VSTEEP) return '#8b0000'; // dark red
+  if (grade > SLOPE_STEEP)  return '#e53935'; // red
+  if (grade > SLOPE_MED)    return '#fb8c00'; // orange
+  if (grade > 0)            return '#ffb300'; // yellow
+  return '#4caf50';                           // green (downhill / flat)
+}
+
+// ---- Map ----
+const map = L.map('map', { zoomControl: false }).setView(CONFIG.center, CONFIG.zoom);
+L.control.zoom({ position: 'topright' }).addTo(map);
+const tileTerrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  maxZoom: 17, attribution: '&copy; OpenTopoMap'
+});
+const tileSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19, attribution: '&copy; Esri'
+});
+let satellite = false;
+tileTerrain.addTo(map);
+function setTilePaneFilter() {
+  // terrain is faded so the tracks stand out; satellite shown at full opacity
+  map.getPane('tilePane').style.filter = satellite ? 'brightness(1) opacity(1)' : 'brightness(1) opacity(0.6)';
+}
+setTilePaneFilter();
+
+// ---- Map control icons ----
+const ICON_EXPAND = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+const ICON_COMPRESS = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
+const ICON_TERRAIN = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M14 6l-4.22 5.63 1.25 1.67L14 9.33 19 16h-8.46l-4.01-5.37L1 18h22L14 6z"/></svg>';
+const ICON_SATELLITE = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>';
+const ICON_IMAGE = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+let mapFull = false;
+let photosVisible = false;
+let fullBtnLink = null, layerBtnLink = null, photoBtnLink = null;
+function setMapFull(on) {
+  mapFull = on;
+  fullBtnLink.innerHTML = on ? ICON_COMPRESS : ICON_EXPAND;
+  fullBtnLink.title = on ? 'Exit full screen' : 'Full screen';
+  updateLayout();
+  drawElevationChart();
+}
+function setSatellite(on) {
+  satellite = on;
+  if (on) { map.removeLayer(tileTerrain); tileSatellite.addTo(map); }
+  else { map.removeLayer(tileSatellite); tileTerrain.addTo(map); }
+  setTilePaneFilter();
+  layerBtnLink.innerHTML = on ? ICON_TERRAIN : ICON_SATELLITE;
+  layerBtnLink.title = on ? 'Terrain' : 'Satellite';
+}
+
+// ---- Photo thumbnails + lightbox ----
+const lightbox = document.getElementById('lightbox');
+const lightboxImg = document.getElementById('lightbox-img');
+function openLightbox(file) {
+  lightboxImg.src = file;
+  lightbox.classList.add('open');
+}
+function closeLightbox() {
+  lightbox.classList.remove('open');
+  lightboxImg.src = '';
+}
+document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+
+const photoMarkers = PHOTOS.map(ph => {
+  const icon = L.divIcon({
+    className: 'photo-marker',
+    html: '<img src="' + ph.file + '" alt="">',
+    iconSize: [24, 24], iconAnchor: [12, 12],
+  });
+  return L.marker([ph.lat, ph.lon], { icon, zIndexOffset: 1000 }).on('click', () => openLightbox(ph.file));
+});
+function setPhotos(on) {
+  photosVisible = on;
+  photoMarkers.forEach(m => { if (on) m.addTo(map); else map.removeLayer(m); });
+  photoBtnLink.classList.toggle('off', !on);
+  photoBtnLink.title = on ? 'Hide photos' : 'Show photos';
+}
+
+// ---- Controls (bottom-left): fullscreen + terrain/satellite + photos ----
+function makeCtrlBtn(parent, icon, title, handler) {
+  const bar = L.DomUtil.create('div', 'leaflet-bar map-fs-btn', parent);
+  const a = L.DomUtil.create('a', '', bar);
+  a.href = '#';
+  a.title = title;
+  a.innerHTML = icon;
+  L.DomEvent.on(a, 'click', L.DomEvent.stop);
+  L.DomEvent.on(a, 'click', handler);
+  return a;
+}
+const mapControls = L.control({ position: 'bottomleft' });
+mapControls.onAdd = function () {
+  const wrap = L.DomUtil.create('div', 'map-ctrls');
+  fullBtnLink = makeCtrlBtn(wrap, ICON_EXPAND, 'Full screen', () => setMapFull(!mapFull));
+  layerBtnLink = makeCtrlBtn(wrap, ICON_SATELLITE, 'Satellite', () => setSatellite(!satellite));
+  photoBtnLink = makeCtrlBtn(wrap, ICON_IMAGE, 'Hide photos', () => setPhotos(!photosVisible));
+  return wrap;
+};
+mapControls.addTo(map);
+setPhotos(photosVisible);   // hidden by default
+
+const overlayEl = document.getElementById('overlay');
+const tracksPanel = document.getElementById('tracks-panel');
+const elevationCanvas = document.getElementById('elevation-canvas');
+
+// ---- Render tracks ----
+const trackLayers = [];   // one polyline per track
+let profileHighlight = null;   // index of the highlighted track (persists across redraws)
+const allBounds = L.latLngBounds();
+
+TRACKS.forEach((t, idx) => {
+  const latlngs = t.points.map(p => [p[0], p[1]]);
+  const line = L.polyline(latlngs, { color: LINE_COLOR, weight: LINE_WEIGHT, opacity: 1 }).addTo(map);
+  trackLayers.push(line);
+  allBounds.extend(line.getBounds());
+
+  const startEle = t.points[0][2];
+  const endEle = t.points[t.points.length - 1][2];
+  const startIcon = L.divIcon({ className: '', html: '<div style="width:10px;height:10px;background:#00c853;border:1px solid #fff;border-radius:50%;"></div>', iconSize: [10,10], iconAnchor: [5,5] });
+  const endIcon = L.divIcon({ className: '', html: '<div style="width:10px;height:10px;background:#e94560;border:1px solid #fff;border-radius:50%;"></div>', iconSize: [10,10], iconAnchor: [5,5] });
+  t._markerStart = L.marker(latlngs[0], { icon: startIcon })
+    .bindPopup('Start of ' + t.name + (startEle != null ? '<br>' + Math.round(startEle) + ' m' : '')).addTo(map);
+  t._markerEnd = L.marker(latlngs[latlngs.length - 1], { icon: endIcon })
+    .bindPopup('End of ' + t.name + (endEle != null ? '<br>' + Math.round(endEle) + ' m' : '')).addTo(map);
+});
+
+// Continuous trek: every interior junction marker is yellow.
+const midIcon = L.divIcon({ className: '', html: '<div style="width:10px;height:10px;background:#ffd600;border:1px solid #fff;border-radius:50%;"></div>', iconSize: [10,10], iconAnchor: [5,5] });
+for (let i = 0; i < TRACKS.length - 1; i++) {
+  TRACKS[i]._markerEnd.setIcon(midIcon);
+  TRACKS[i + 1]._markerStart.setIcon(midIcon);
+}
+
+// Car-transfer gaps: dashed light-red line from a track's end to the next track's start.
+const CAR_GAPS = CONFIG.carGaps || [];
+CAR_GAPS.forEach(i => {
+  const a = TRACKS[i].points[TRACKS[i].points.length - 1];
+  const b = TRACKS[i + 1].points[0];
+  L.polyline([[a[0], a[1]], [b[0], b[1]]], { color: '#ff6b6b', weight: 3, opacity: 0.9, dashArray: '6 8' }).addTo(map);
+});
+
+// ---- Table ----
+function buildTable() {
+  let html = '<table id="tracks-table"><thead><tr>' +
+    '<th>Day</th><th>Name</th><th>Dist</th><th>Gain</th><th>Elapsed</th><th>Moving</th>' +
+    '<th>Min</th><th>Max</th>' +
+    '</tr></thead><tbody>';
+  let prevDay = null;
+  TRACKS.forEach((t, idx) => {
+    const isNewDay = t.day !== prevDay;
+    const dayCell = isNewDay ? t.day : '';
+    prevDay = t.day;
+    const cls = (isNewDay && idx > 0) ? ' class="day-start"' : '';
+    html += `<tr data-track-idx="${idx}"${cls}><td>${dayCell}</td><td>${t.name}</td>` +
+      `<td>${t.dist}</td><td>${t.gain}</td><td>${t.elapsed}</td><td>${t.moving}</td>` +
+      `<td>${t.minEle}</td><td>${t.maxEle}</td></tr>`;
+  });
+  html += `<tr class="total-row"><td></td><td>Total</td>` +
+    `<td>${TOTAL.dist}</td><td>${TOTAL.gain}</td><td>${TOTAL.elapsed}</td><td>${TOTAL.moving}</td>` +
+    `<td>${TOTAL.minEle}</td><td>${TOTAL.maxEle}</td></tr>`;
+  html += '</tbody></table>';
+  tracksPanel.innerHTML = html;
+
+  // Click/tap a row to select it: dim all others on the map + emphasise it in
+  // the profile. Click the selected row again to deselect.
+  let selectedIdx = null;
+  function applyHighlight(idx) {
+    profileHighlight = idx;
+    trackLayers.forEach((l, j) => l.setStyle({ opacity: (idx == null || j === idx) ? 1 : DIM_OPACITY }));
+    // Show all start/end markers when nothing is selected; otherwise only the
+    // selected track's own start and end markers.
+    TRACKS.forEach((t, j) => {
+      const show = (idx == null) || (j === idx);
+      [t._markerStart, t._markerEnd].forEach(m => {
+        if (!m) return;
+        if (show) m.addTo(map); else map.removeLayer(m);
+      });
+    });
+    drawElevationChart();
+    tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(r => {
+      r.classList.toggle('selected', parseInt(r.dataset.trackIdx) === idx);
+    });
+  }
+  tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(row => {
+    const i = parseInt(row.dataset.trackIdx);
+    row.addEventListener('click', () => {
+      selectedIdx = (selectedIdx === i) ? null : i;
+      applyHighlight(selectedIdx);
+    });
+  });
+}
+buildTable();
+
+// ---- Elevation profile (pre-computed at generation time — no runtime sampling) ----
+const elevSegments = PROFILE;
+
+function drawElevationChart() {
+  const ctx = elevationCanvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = elevationCanvas.getBoundingClientRect();
+  elevationCanvas.width = rect.width * dpr;
+  elevationCanvas.height = rect.height * dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+
+  let globalMinE = Infinity, globalMaxE = -Infinity;
+  elevSegments.forEach(seg => seg.e.forEach(e => {
+    if (e < globalMinE) globalMinE = e;
+    if (e > globalMaxE) globalMaxE = e;
+  }));
+  const minE = globalMinE - 20, maxE = globalMaxE + 20;
+
+  let totalSegDist = 0;
+  elevSegments.forEach(seg => { totalSegDist += seg.d[seg.d.length - 1]; });
+  const numGaps = elevSegments.length > 1 ? elevSegments.length - 1 : 0;
+  const gapPx = 0;
+  const usableW = W - numGaps * gapPx;
+
+  ctx.clearRect(0, 0, W, H);
+  let cumPxOffset = 0;
+  elevSegments.forEach((seg, segIdx) => {
+    const dim = profileHighlight != null && segIdx !== profileHighlight;
+    const segMaxD = seg.d[seg.d.length - 1];
+    const segW = totalSegDist > 0 ? (segMaxD / totalSegDist) * usableW : 0;
+    const coords = seg.e.map((ev, i) => ({
+      x: cumPxOffset + (segMaxD > 0 ? (seg.d[i] / segMaxD) * segW : 0),
+      y: H - ((ev - minE) / (maxE - minE)) * H,
+    }));
+
+    // area under the profile (unchanged white gradient)
+    ctx.beginPath();
+    ctx.moveTo(cumPxOffset, H);
+    coords.forEach(c => ctx.lineTo(c.x, c.y));
+    ctx.lineTo(cumPxOffset + segW, H);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, dim ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.4)');
+    grad.addColorStop(1, dim ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // slope-coloured line on top
+    for (let i = 0; i < coords.length - 1; i++) {
+      const rise = seg.e[i + 1] - seg.e[i];
+      const run = seg.d[i + 1] - seg.d[i];
+      ctx.beginPath();
+      ctx.moveTo(coords[i].x, coords[i].y);
+      ctx.lineTo(coords[i + 1].x, coords[i + 1].y);
+      ctx.strokeStyle = slopeColor(run > 0 ? rise / run : 0, dim);
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+
+    cumPxOffset += segW + gapPx;
+  });
+
+  // Elevation gridlines at 3000 / 4000 / 5000 m
+  ctx.lineWidth = 1;
+  ctx.font = '10px sans-serif';
+  CONFIG.gridlines.forEach(el => {
+    if (el < minE || el > maxE) return;
+    const y = H - ((el - minE) / (maxE - minE)) * H;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(el + ' m', 4, Math.max(10, y - 3));
+  });
+}
+
+// ---- Layout: table fills the right; map takes the remaining space (not behind
+//      the table or the elevation chart) ----
+const mapEl = document.getElementById('map');
+const mobileMQ = window.matchMedia('(max-width: 600px)');
+function updateLayout() {
+  if (mapFull) {
+    document.body.classList.add('map-full');
+    mapEl.style.top = mapEl.style.left = mapEl.style.right = mapEl.style.bottom = '';
+    map.invalidateSize();
+    return;
+  }
+  document.body.classList.remove('map-full');
+  if (mobileMQ.matches) {
+    // Mobile: stacked flow — clear desktop inline insets and let CSS size things.
+    mapEl.style.top = mapEl.style.left = mapEl.style.right = mapEl.style.bottom = '';
+    tracksPanel.style.top = tracksPanel.style.height = '';
+    map.invalidateSize();
+    return;
+  }
+  const overlayH = overlayEl.offsetHeight;
+  tracksPanel.style.top = '0px';
+  tracksPanel.style.height = (window.innerHeight - overlayH) + 'px';
+  const panelW = tracksPanel.offsetWidth;
+  mapEl.style.top = '0px';
+  mapEl.style.left = panelW + 'px';
+  mapEl.style.right = '0px';
+  mapEl.style.bottom = overlayH + 'px';
+  map.invalidateSize();
+}
+
+updateLayout();
+map.fitBounds(allBounds, { padding: [30, 30] });
+drawElevationChart();
+window.addEventListener('resize', () => {
+  updateLayout();
+  drawElevationChart();
+});
