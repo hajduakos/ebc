@@ -267,10 +267,12 @@ function drawElevationChart() {
     cumPxOffset += segW + gapPx;
   });
 
-  // Elevation gridlines every 1000 m (0–8000) that fall within the visible range
+  // Elevation gridlines (0–8000) that fall within the visible range; the vertical
+  // spacing is set per-hike via CONFIG.elevationGridStep (metres), default 1000.
+  const gridStep = CONFIG.elevationGridStep || 1000;
   ctx.lineWidth = 1;
   ctx.font = '10px sans-serif';
-  for (let el = 0; el <= 8000; el += 1000) {
+  for (let el = 0; el <= 8000; el += gridStep) {
     if (el < minE || el > maxE) continue;
     const y = H - ((el - minE) / (maxE - minE)) * H;
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
