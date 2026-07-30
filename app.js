@@ -73,6 +73,9 @@ function closeLightbox() {
 }
 document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
 lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && lightbox.classList.contains('open')) closeLightbox();
+});
 
 const photoMarkers = PHOTOS.map(ph => {
   const icon = L.divIcon({
