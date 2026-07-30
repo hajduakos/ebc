@@ -120,20 +120,46 @@ const trackLayers = [];   // one polyline per track
 let profileHighlight = null;   // index of the highlighted track (persists across redraws)
 const allBounds = L.latLngBounds();
 
+// ---- Track selection (shared by the table rows and by clicking on the map) ----
+// Selecting a track dims all others on the map, shows only its start/end markers,
+// emphasises it in the elevation profile, and highlights its table row. Selecting
+// the already-selected track deselects it.
+let selectedIdx = null;
+function applyHighlight(idx) {
+  profileHighlight = idx;
+  trackLayers.forEach((l, j) => l.setStyle({ opacity: (idx == null || j === idx) ? 1 : DIM_OPACITY }));
+  // Show all start/end markers when nothing is selected; otherwise only the
+  // selected track's own start and end markers.
+  TRACKS.forEach((t, j) => {
+    const show = (idx == null) || (j === idx);
+    [t._markerStart, t._markerEnd].forEach(m => {
+      if (!m) return;
+      if (show) m.addTo(map); else map.removeLayer(m);
+    });
+  });
+  drawElevationChart();
+  tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(r => {
+    r.classList.toggle('selected', parseInt(r.dataset.trackIdx) === idx);
+  });
+}
+function selectTrack(i) {
+  selectedIdx = (selectedIdx === i) ? null : i;
+  applyHighlight(selectedIdx);
+}
+
 TRACKS.forEach((t, idx) => {
   const latlngs = t.points.map(p => [p[0], p[1]]);
   const line = L.polyline(latlngs, { color: LINE_COLOR, weight: LINE_WEIGHT, opacity: 1 }).addTo(map);
+  line.on('click', () => selectTrack(idx));   // click anywhere on the track to select it
   trackLayers.push(line);
   allBounds.extend(line.getBounds());
 
-  const startEle = t.points[0][2];
-  const endEle = t.points[t.points.length - 1][2];
   const startIcon = L.divIcon({ className: '', html: '<div style="width:10px;height:10px;background:#00c853;border:1px solid #fff;border-radius:50%;"></div>', iconSize: [10,10], iconAnchor: [5,5] });
   const endIcon = L.divIcon({ className: '', html: '<div style="width:10px;height:10px;background:#e94560;border:1px solid #fff;border-radius:50%;"></div>', iconSize: [10,10], iconAnchor: [5,5] });
   t._markerStart = L.marker(latlngs[0], { icon: startIcon })
-    .bindPopup('Start of ' + t.name + (startEle != null ? '<br>' + Math.round(startEle) + ' m' : '')).addTo(map);
+    .on('click', () => selectTrack(idx)).addTo(map);
   t._markerEnd = L.marker(latlngs[latlngs.length - 1], { icon: endIcon })
-    .bindPopup('End of ' + t.name + (endEle != null ? '<br>' + Math.round(endEle) + ' m' : '')).addTo(map);
+    .on('click', () => selectTrack(idx)).addTo(map);
 });
 
 // Continuous trek: every interior junction marker is yellow.
@@ -173,32 +199,11 @@ function buildTable() {
   html += '</tbody></table>';
   tracksPanel.innerHTML = html;
 
-  // Click/tap a row to select it: dim all others on the map + emphasise it in
-  // the profile. Click the selected row again to deselect.
-  let selectedIdx = null;
-  function applyHighlight(idx) {
-    profileHighlight = idx;
-    trackLayers.forEach((l, j) => l.setStyle({ opacity: (idx == null || j === idx) ? 1 : DIM_OPACITY }));
-    // Show all start/end markers when nothing is selected; otherwise only the
-    // selected track's own start and end markers.
-    TRACKS.forEach((t, j) => {
-      const show = (idx == null) || (j === idx);
-      [t._markerStart, t._markerEnd].forEach(m => {
-        if (!m) return;
-        if (show) m.addTo(map); else map.removeLayer(m);
-      });
-    });
-    drawElevationChart();
-    tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(r => {
-      r.classList.toggle('selected', parseInt(r.dataset.trackIdx) === idx);
-    });
-  }
+  // Click/tap a row to select it (same as clicking the track on the map): dim all
+  // others + emphasise it in the profile. Click the selected row again to deselect.
   tracksPanel.querySelectorAll('tr[data-track-idx]').forEach(row => {
     const i = parseInt(row.dataset.trackIdx);
-    row.addEventListener('click', () => {
-      selectedIdx = (selectedIdx === i) ? null : i;
-      applyHighlight(selectedIdx);
-    });
+    row.addEventListener('click', () => selectTrack(i));
   });
 }
 buildTable();
