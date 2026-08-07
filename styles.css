@@ -45,7 +45,8 @@
   #tracks-table td:nth-child(n+3) { text-align: right; }
   #tracks-table tbody tr[data-track-idx] { cursor: pointer; }
   #tracks-table tbody tr:hover td { background: rgba(255,255,255,0.05); }
-  #tracks-table tbody tr.selected td { background: rgba(255,255,255,0.12); }
+  #tracks-table tbody tr.selected td { background: #6b1d1d; }
+  #tracks-table tbody tr.selected:hover td { background: #7d2323; }
   #tracks-table tr.total-row td {
     font-weight: 700; color: #fff;
     border-top: 2px solid #777; border-bottom: none;
